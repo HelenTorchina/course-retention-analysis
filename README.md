@@ -1,4 +1,3 @@
-# course-retention-analysis
 # Анализ Продлений Курсов / Course Retention Analysis Project
 
 ## 🇷🇺 Описание проекта
