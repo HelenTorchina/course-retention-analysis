@@ -27,7 +27,7 @@ users_info AS (
   FROM 
     users u 
     left join cities cit on u.city_id = cit.id 
-    left join user_roles u_r on u.user_role_id = u_r.id 
+    inner join user_roles u_r on u.user_role_id = u_r.id 
     inner join course_users c_u on u.id = c_u.user_id 
   WHERE 
     u_r.name = 'student'
@@ -39,8 +39,8 @@ homework_info AS (
     count(hw_d.id) as homework_done_on_course_by_user 
   FROM 
     homework_done hw_d 
-    left join homework_lessons hw_l on hw_d.homework_id = hw_l.homework_id 
-    left join lessons l on hw_l.lesson_id = l.id 
+    inner join homework_lessons hw_l on hw_d.homework_id = hw_l.homework_id 
+    inner join lessons l on hw_l.lesson_id = l.id 
   GROUP BY 
     u_id, 
     c_id
