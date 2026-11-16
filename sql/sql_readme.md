@@ -1,22 +1,42 @@
-Схема базы данных приведена в файле db_schema.jpg. 
-Сама БД собирается из файлов csv с помощью скрипта Python.
+# SQL Data Extraction
 
-Для повышения скорости отработки скрипта, а также для лучшей читаемости использовала CTE. 
+The database schema is provided in `db_schema_english.jpg`. The database is populated from CSV files using a Python script.
 
-Далее кратко о каждом табличном выражении:
-В courses_info я получаю id курса, его название и дату старта из таблицы courses; id, название и тип предмета - из таблицы subjects; 
-id и название типа курса, а также количество уроков в месяц - из таблицы course_types. 
-Использовала внутреннее соединение, т.к. в данной БД нет курсов, для которых не указаны предмет и тип предмета. 
+The SQL query uses Common Table Expressions (CTEs) to improve readability and organize the data extraction process into logical steps.
 
-В users_info я получаю id и фамилию ученика - из таблицы users; id и название города ученика - из таблицы cities; 
-наличие/отсутствие факта отчисления и дату открытия курса ученику - из таблицы course_users. 
-При соединении таблицы пользователей с таблицами городов и ролей пользователей использовала левое соединение, т.к. в базе не для всех пользователей указаны города. 
-Также использовала фильтр по названию роли, чтобы оставить данные только об учениках.
+## 1. `courses_info`
 
-В homework_info я получаю число сданных домашних заданий каждого ученика на каждом курсе. 
-Для этого объединяю таблицы homework_done, homework_lessons и lessons, подсчитываю id сданных домашних работ и выполняю группировку и сортировку 
-по пользователям и по курсам, полученных в courses_info и users_info. 
-Оба соединения внутренние, потому что в данной нам базе нет домашних заданий, не привязанных к урокам и наоборот.
+This CTE retrieves course-related information by joining three tables:
 
-В результирующем запросе я объединяю данные из всех трёх табличных выражений и рассчитываю количество полных месяцев курса, открытых у ученика, 
-как результат целочисленного деления поля «Число открытых уроков» на поле «Число уроков в месяц на курсе».
+- `courses`: course ID, course name, and course start date;
+- `subjects`: subject ID, subject name, and subject type;
+- `course_types`: course type ID, course type name, and the number of lessons per month.
+
+All joins are `INNER JOIN` operations because the source database contains no courses without an associated subject or course type.
+
+## 2. `users_info`
+
+This CTE retrieves student and course enrollment information:
+
+- `users`: student ID and last name;
+- `cities`: city ID and city name;
+- `user_roles`: user role, used to filter records and include students only;
+- `course_users`: course enrollment status, course access opening date, course ID, and the number of available lessons.
+
+The `cities` table is joined using a `LEFT JOIN` because some users do not have a city specified in the database. The `user_roles` table is joined using an `INNER JOIN`, and the query filters records by the `student` role.
+
+## 3. `homework_info`
+
+This CTE calculates the number of completed homework assignments for each student on each course.
+
+It combines the `homework_done`, `homework_lessons`, and `lessons` tables, counts completed homework records, and groups the results by student ID and course ID.
+
+All joins are `INNER JOIN` operations. This ensures that only homework records linked to lessons and courses are included in the resulting dataset.
+
+## 4. Final Query
+
+The final query combines the results of all three CTEs to produce a dataset containing course, student, enrollment, and homework information.
+
+It also calculates the number of full months of course access available to each student by dividing the number of available lessons by the number of lessons scheduled per month. `NULLIF` is used to prevent division by zero.
+
+The resulting dataset serves as the basis for further analysis in Python and Power BI.
