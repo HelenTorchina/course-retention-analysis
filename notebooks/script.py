@@ -1,13 +1,13 @@
 from datetime import datetime
 
-# Импорт библиотек
+# Import required libraries
 import pandas as pd
 import duckdb as ddb
 from IPython.display import display
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-# Задание таблиц БД
+# Load database tables from CSV files
 users = pd.read_csv('users.csv')
 course_users = pd.read_csv('course_users.csv')
 courses = pd.read_csv('courses.csv')
@@ -20,7 +20,7 @@ homework = pd.read_csv('homework.csv')
 homework_lessons = pd.read_csv('homework_lessons.csv')
 user_roles = pd.read_csv('user_roles.csv') 
 
-# Создание запроса к базе данных
+# Define SQL query for data extraction
 query = """
 WITH courses_info AS 
 (SELECT c.id as course_id, c.name as course_name, c.starts_at as course_start_date, 
@@ -53,60 +53,62 @@ left join homework_info h_i on h_i.u_id = u_i.user_id AND h_i.c_id = c_i.course_
 ORDER BY course_id
 """
 
-# Выполнение SQL-запроса
+# Execute SQL query and convert the result to a DataFrame
 df_result = ddb.query(query).to_df()
 
-# Определим типы данных, проверим количество строк и столбцов, обнаружим столбцы с пропусками
+# Inspect data types, dataset dimensions, and missing values
 df_result.info()
 df_result.head(20)
 
-# Обработка пропусков
-# Не по всем ученикам есть информация о городе, видимо, это необязательная информация, заменим пропуски на 0 для айди и на "нет данных" для названия
+# Handle missing values
+# Replace missing city IDs with 0 and missing city names with 'Unknown' ("нет данных")
 df = df_result
 df['city_id'] = df_result['city_id'].fillna(0)
 df['city_name'] = df_result['city_name'].fillna('нет данных')
-# Количество месяцев на курсе также заполнено не для всех пользователей. Полагаю, некоторые пользователи не открыли ни одного урока, дело в этом, соответственно, заменим пропускина нули
+# Replace missing course access duration with 0
 df['user_course_month_count'] = df_result['user_course_month_count'].fillna(0)
-# Количество выполненных домашних заданий на курсе также содержит пропуски, что означает отсутствие выполненных д/з, заменяем пропуски на нули
+# Replace missing homework counts with 0
 df['homework_done_on_course_by_user'] = df_result['homework_done_on_course_by_user'].fillna(0)
 
-# Обработка типов данных
-# Все поля id должны быть целочисленными, однако айди города почему-то имеет тип float, проверим, что в этом столбце нет нецелых значений
+# Convert data types
+# Check for non-integer values in the city ID column
 print((df['city_id'] % 1 != 0).sum())
-# Получили 0, значит, можем изменить тип данных на int64
+# No non-integer values found; convert city IDs to int64
 df['city_id'] = df['city_id'].astype('int64')
-# Проверим, есть ли НЕ целые числа в столбце с количеством месяцев
+# Check for non-integer values in the course access duration column
 print((df['user_course_month_count'] % 1 != 0).sum())
-# Получили 0, значит, можем изменить тип данных на int64
+# No non-integer values found; convert course access duration to int64
 df['user_course_month_count'] = df['user_course_month_count'].astype('int64')
 
-# Столбцы с названием курса, названием и типом предмета, фамилией пользователя и названием города преобразуем в строковый тип,
-# но для начала проверим, что тип данных действительно строковый в этих столбцах
+# Validate string values before converting columns to the string data type
 print(df['course_name'].apply(lambda x: isinstance(x, str)).all())
 print(df['subject_name'].apply(lambda x: isinstance(x, str)).all())
 print(df['subject_type'].apply(lambda x: isinstance(x, str)).all())
 print(df['user_last_name'].apply(lambda x: isinstance(x, str)).all())
 print(df['city_name'].apply(lambda x: isinstance(x, str)).all())
-# Все значения True, значит, можем спокойно выполнить преобразование
+# All values are strings; convert the relevant columns to the string data type
 df['course_name'] = df['course_name'].astype("string")
 df['subject_name'] = df['subject_name'].astype("string")
 df['subject_type'] = df['subject_type'].astype("string")
 df['user_last_name'] = df['user_last_name'].astype("string")
 df['city_name'] = df['city_name'].astype("string")
 
-# Теперь остаётся проверить, все ли данные в столбцах с датами являются датами, и провести соответствующие преобразования
+# Validate and convert date columns
+# Check whether date columns contain datetime values
 print(df['course_start_date'].apply(lambda x: isinstance(x, (pd.Timestamp, datetime))).all())
 print(df['course_opening_date'].apply(lambda x: isinstance(x, (pd.Timestamp, datetime))).all())
-# Это не даты, возможно, это тоже строки
+# Date values are stored as strings; verify their data types
 print(df['course_start_date'].apply(lambda x: isinstance(x, (pd.Timestamp, str))).all())
 print(df['course_opening_date'].apply(lambda x: isinstance(x, (pd.Timestamp, str))).all())
-# да, строки, преобразуем их в даты-время и проверим, есть ли неудачно преобразованные строки
+# Convert date columns to datetime and check for parsing errors
 df['course_start_date'] = pd.to_datetime(df['course_start_date'], errors='coerce')
 df['course_opening_date'] = pd.to_datetime(df['course_opening_date'], errors='coerce')
 print(df[df['course_start_date'].isna()])
 print(df[df['course_opening_date'].isna()])
 
-# Преобразуем также тип данных столбца "студент не отчислен" к логическому с предварительной заменой 1 и 0
+# Convert the student enrollment status column to Boolean
+# Map 1 to True, 0 to False, and other values to missing
+# Check for missing values after conversion
 df['student_not_expelled'] = df['student_not_expelled'].apply(
     lambda x: True if x == 1
     else False if x == 0
@@ -115,21 +117,19 @@ df['student_not_expelled'] = df['student_not_expelled'].apply(
 print(df[df['student_not_expelled'].isna()])
 
 
-# Проверка на наличие дубликатов
+# Check for duplicate records
 print(df.duplicated().sum())
-# Дубликатов не обнаружено
+# No duplicate records found
 
-# Анализ аномальных значений (выбросов)
-# Посмотрим описательную статистику
+# Detect potential outliers
+# Review descriptive statistics
 print(df.describe())
-# Буду использовать визуальную проверку с помощью "ящика с усами" и метод межквартильного размаха при необходимости
-# для обнаружения выбросов, интересуют такие показатели, как дата старта курса, дата записи на курс, количество
-# месяцев курса и количество выполненных домашних заданий на курсе
-sns.boxplot(x=df['course_start_date'])  # выбросы — это точки за усами
+# Use boxplots and the interquartile range (IQR) method to identify potential outliers
+# Check course start dates for potential outliers
+sns.boxplot(x=df['course_start_date']) 
 plt.show()
-# Судя по графику, обнаружено довольно много выбросов по дате старта курса, если более ранние даты меня не беспокоят,
-# т.к. соответствуют датам в других таблицах (например, есть домашние задания от июня 2024), то курс с датой 11.2025
-# вызывает подозрения
+# Earlier dates are consistent with dates in other tables and are retained
+# Investigate the course with the November 2025 start date
 Q1 = df['course_start_date'].quantile(0.25)
 Q3 = df['course_start_date'].quantile(0.75)
 IQR = Q3 - Q1
@@ -137,21 +137,23 @@ lower_bound = Q1 - 1.5 * IQR
 upper_bound = Q3 + 1.5 * IQR
 outliers = df[(df['course_start_date'] > upper_bound)]
 display(outliers)
-# Видим, что на этом курсе указана дата записи на курс 4.11.2024, т.е. это описка, заменим год на 2024
+# The enrollment date indicates a likely data entry error; correct the year to 2024
 df.loc[df['course_start_date'] == '2025-11-06', 'course_start_date'] = pd.to_datetime('2024-11-06')
-# Проверяем, что выброс исчез
-sns.boxplot(x=df['course_start_date'])  # выбросы — это точки за усами
+# Verify the correction
+sns.boxplot(x=df['course_start_date'])
 plt.show()
-# и проверяем на выбросы другие столбцы
+# Check enrollment dates for potential outliers
 sns.boxplot(x=df['course_opening_date'])
 plt.show()
-# Выбросов не обнаружено
+# No significant outliers detected
 sns.boxplot(x=df['user_course_month_count'])
 plt.show()
-# Значений больше 12 не обнаружено, а т.к. у нас годовые курсы, считаем, что выбросов нет
+# Check course access duration for potential outliers
+# No values above 12 months found; the dataset contains annual courses
 sns.boxplot(x=df['homework_done_on_course_by_user'])
 plt.show()
-# Может ли быть на курсе от 17 до 35 домашних заданий? Выведем строки с выбросами
+# Check completed homework counts for potential outliers
+# Review records with unusually high homework counts
 Q1 = df['homework_done_on_course_by_user'].quantile(0.25)
 Q3 = df['homework_done_on_course_by_user'].quantile(0.75)
 IQR = Q3 - Q1
@@ -159,31 +161,35 @@ lower_bound = Q1 - 1.5 * IQR
 upper_bound = Q3 + 1.5 * IQR
 outliers = df[(df['homework_done_on_course_by_user'] > upper_bound)]
 display(outliers)
-# Как видно, таких значений достаточно много, не считаю их выбросами
-# Деление учеников на волны проведём строго по дням с помощью отдельной функции
-# Создадим (а после удалим) дополнительный столбец, в котором будет содержаться количество дней между присоединением ученика к курсу и началом курса (в виде целого числа int64)
+# These values are relatively frequent and are not treated as outliers
+
+# Segment students into enrollment waves based on the number of days
+# between the course start date and the course access opening date
+# Calculate the difference in days
 df['days_between'] = (df['course_opening_date'] - df['course_start_date']).dt.days
 
-# Создадим колонку с номером волны и запишем туда результат сравнения, используя функцию
+# Assign enrollment wave labels based on the number of days after the course start date
 def waves(days):
-    if days <= 0:
+    if pd.isna(days): # Missing dates are retained as missing wave values
+        return pd.NA
+    if days <= 0: # Wave 0: on or before the course start date
         return 0
-    elif days <= 7:
+    elif days <= 7: # Wave 1: 1–7 days after the start date
         return 1
-    elif days <= 14:
+    elif days <= 14: # Wave 2: 8–14 days after the start date
         return 2
-    elif days <= 21:
+    elif days <= 21: # Wave 3: 15–21 days after the start date
         return 3
-    elif days <= 28:
+    elif days <= 28: # Wave 4: 22–28 days after the start date
         return 4
-    else:
+    else:             # Wave 5: more than 28 days after the start date
         return 5
 
-df['wave'] = df['days_between'].apply(waves)
-# Отобразим каждую волну
+df['wave'] = df['days_between'].apply(waves).astype('Int64')
+# Review students assigned to Wave 5
 display(df[df['wave'] == 5].sort_values(by='days_between'))
-# Отобразим итоговый результат, удалив лишнюю колонку
+# Remove the temporary column and display the final dataset
 df.drop(columns='days_between', inplace=True)
 display(df)
-# Сохраним в формате csv для загрузки в Yandex DataLens
+# Export the processed dataset to CSV for use in Power BI and Yandex DataLens
 df.to_csv('test_dataset.csv', index=False)
